@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新增、查看、更新與刪除代辦事項</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+
+<div class="container mt-5">
+    <h2 class="text-center">新增、查看、更新與刪除代辦事項</h2>
+    
+    <!-- 新增代辦事項表單 -->
+    <form id="todoForm" class="mt-4">
+        <div class="form-group">
+            <label for="student_id">學生 ID:</label>
+            <input type="text" id="student_id" name="student_id" class="form-control" value="50915133" readonly required>
+        </div>
+        
+        <div class="form-group">
+            <label for="task">代辦事項:</label>
+            <input type="text" id="task" name="task" class="form-control" required>
+        </div>
+        
+        <button type="submit" class="btn btn-primary btn-block">新增事項</button>
+    </form>
+    
+    <!-- 查詢代辦事項按鈕 -->
+    <button id="getTodosButton" class="btn btn-secondary btn-block mt-3">查看所有代辦事項</button>
+    
+    <!-- 回應顯示區域 -->
+    <div id="response" class="alert alert-info mt-3" role="alert"></div>
+    
+    <!-- 顯示所有代辦事項的區域 -->
+    <div id="todosList" class="mt-3"></div>
+
+    <!-- 更新代辦事項彈窗 -->
+    <div class="modal fade" id="updateModal" tabindex="-1" aria-labelledby="updateModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="updateModalLabel">更新代辦事項</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="updateTodoForm">
+                        <input type="hidden" id="updateTodoId">
+                        <div class="form-group">
+                            <label for="updateTask">代辦事項:</label>
+                            <input type="text" id="updateTask" class="form-control" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="updateCompleted">是否完成:</label>
+                            <select id="updateCompleted" class="form-control" required>
+                                <option value="true">已完成</option>
+                                <option value="false">未完成</option>
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-success" form="updateTodoForm">更新事項</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script>
+    // 處理新增代辦事項
+    document.getElementById('todoForm').addEventListener('submit', function(event) {
+        event.preventDefault(); // 防止表單的預設提交
+
+        const studentId = document.getElementById('student_id').value;
+        const task = document.getElementById('task').value;
+
+        const todoData = {
+            student_id: studentId,
+            task: task
+        };
+
+        // 發送請求新增代辦事項
+        fetch('https://nfutest.pythonanywhere.com/todos', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(todoData)
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                throw new Error('新增事項失敗');
+            }
+        })
+        .then(data => {
+            // 顯示新增成功的回應
+            document.getElementById('response').innerHTML = `
+                <strong>新增成功!</strong><br>
+                事項 ID: ${data.id}<br>
+                事項內容: ${data.task}<br>
+                完成狀態: ${data.completed ? '已完成' : '未完成'}
+            `;
+            // 重新查詢代辦事項
+            document.getElementById('getTodosButton').click();
+        })
+        .catch(error => {
+            document.getElementById('response').innerHTML = `
+                <strong>錯誤:</strong> ${error.message}
+            `;
+        });
+    });
+
+    // 處理查詢代辦事項
+    document.getElementById('getTodosButton').addEventListener('click', function() {
+        const studentId = document.getElementById('student_id').value;
+
+        // 發送請求獲取學生的所有代辦事項
+        fetch(`https://nfutest.pythonanywhere.com/todos?student_id=${studentId}`, {
+            method: 'GET',
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                throw new Error('無法獲取代辦事項');
+            }
+        })
+        .then(data => {
+            // 顯示所有代辦事項
+            const todosList = document.getElementById('todosList');
+            todosList.innerHTML = ''; // 清空之前的代辦事項列表
+
+            if (data.todos && data.todos.length > 0) {
+                const ul = document.createElement('ul');
+                data.todos.forEach(todo => {
+                    const li = document.createElement('li');
+                    li.classList.add('list-group-item');
+                    li.innerHTML = `
+                        <strong>事項 ID:</strong> ${todo.id}<br>
+                        <strong>事項內容:</strong> ${todo.task}<br>
+                        <strong>完成狀態:</strong> <span class="${todo.completed ? 'text-success' : 'text-danger'}">
+                            ${todo.completed ? '已完成' : '未完成'}
+                        </span><br>
+                        <button class="updateButton btn btn-warning btn-sm mt-2" data-id="${todo.id}" data-task="${todo.task}" data-completed="${todo.completed}">更新</button>
+                        <button class="deleteButton btn btn-danger btn-sm mt-2" data-id="${todo.id}">刪除</button>
+                    `;
+                    ul.appendChild(li);
+                });
+                todosList.appendChild(ul);
+
+                // 註冊更新按鈕的點擊事件
+                document.querySelectorAll('.updateButton').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const todoId = button.getAttribute('data-id');
+                        const todoTask = button.getAttribute('data-task');
+                        const todoCompleted = button.getAttribute('data-completed') === 'true';
+
+                        // 顯示更新表單並填充數據
+                        document.getElementById('updateTodoId').value = todoId;
+                        document.getElementById('updateTask').value = todoTask;
+                        document.getElementById('updateCompleted').value = todoCompleted.toString();
+
+                        $('#updateModal').modal('show');
+                    });
+                });
+
+                // 註冊刪除按鈕的點擊事件
+                document.querySelectorAll('.deleteButton').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const todoId = button.getAttribute('data-id');
+                        const studentId = document.getElementById('student_id').value;
+
+                        // 發送 DELETE 請求刪除代辦事項
+                        fetch(`https://nfutest.pythonanywhere.com/todos/${todoId}`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ student_id: studentId })
+                        })
+                        .then(response => {
+                            if (response.ok) {
+                                return response.json();
+                            } else {
+                                throw new Error('刪除失敗');
+                            }
+                        })
+                        .then(data => {
+                            // 顯示刪除成功的回應
+                            document.getElementById('response').innerHTML = `
+                                <strong>刪除成功!</strong><br>
+                                代辦事項已成功刪除
+                            `;
+                            
+                            // 刷新代辦事項列表
+                            document.getElementById('getTodosButton').click();
+                        })
+                        .catch(error => {
+                            document.getElementById('response').innerHTML = `
+                                <strong>錯誤:</strong> ${error.message}
+                            `;
+                        });
+                    });
+                });
+            } else {
+                todosList.innerHTML = '沒有任何代辦事項。';
+            }
+        })
+        .catch(error => {
+            document.getElementById('todosList').innerHTML = `
+                <strong>錯誤:</strong> ${error.message}
+            `;
+        });
+    });
+
+    // 處理更新代辦事項
+    document.getElementById('updateTodoForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const todoId = document.getElementById('updateTodoId').value;
+        const updatedTask = document.getElementById('updateTask').value;
+        const updatedCompleted = document.getElementById('updateCompleted').value === 'true';
+
+        const updatedTodo = {
+            student_id: document.getElementById('student_id').value,
+            task: updatedTask,
+            completed: updatedCompleted
+        };
+
+        // 發送 PUT 請求更新代辦事項
+        fetch(`https://nfutest.pythonanywhere.com/todos/${todoId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updatedTodo)
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                throw new Error('更新失敗');
+            }
+        })
+        .then(data => {
+            alert('更新成功');
+            $('#updateModal').modal('hide');
+            // 重新查詢代辦事項
+            document.getElementById('getTodosButton').click();
+        })
+        .catch(error => {
+            alert('更新失敗: ' + error.message);
+        });
+    });
+</script>
+
+</body>
+</html>
